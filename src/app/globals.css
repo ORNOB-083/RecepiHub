@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+@theme {
+  --animate-*: initial;
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+@plugin "daisyui";
