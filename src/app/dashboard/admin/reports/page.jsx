@@ -1,32 +1,13 @@
-"use client";
+import { headers } from 'next/headers';
+import { auth } from '@/lib/auth';
+import ReportsClient from './ReportsClient';
 
-import { useEffect, useState } from "react";
+export default async function AdminReportsPage() {
+  const session = await auth.api.getSession({ headers: await headers() });
 
-export default function ReportsPage() {
-  const [reports, setReports] = useState([]);
+  if (!session?.user || session.user.role !== 'admin') {
+    return <div className="p-6 text-center text-red-500">Access denied. Admins only.</div>;
+  }
 
-  useEffect(() => {
-    fetch("/api/admin/reports")
-      .then((res) => res.json())
-      .then((data) => setReports(data));
-  }, []);
-
-  return (
-    <div>
-      <h1 className="text-2xl font-bold mb-4">Reports</h1>
-
-      <div className="space-y-3">
-        {reports.map((r) => (
-          <div
-            key={r._id}
-            className="p-4 bg-white dark:bg-zinc-900 rounded-xl"
-          >
-            <p>Recipe ID: {r.recipeId}</p>
-            <p>Reason: {r.reason}</p>
-            <p>Status: {r.status}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  return <ReportsClient user={session.user} />;
 }
