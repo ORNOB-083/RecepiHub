@@ -77,24 +77,24 @@ export default function SignupForm({ redirectTo = "/" }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-10">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-zinc-950 px-4 py-10">
       <motion.div
         initial={{ opacity: 0, y: 25 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md bg-white rounded-3xl border border-gray-200 shadow-xl p-8"
+        className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-3xl border border-gray-200 dark:border-zinc-800 shadow-xl p-8"
       >
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-black text-gray-900">
+          <h1 className="text-4xl font-black text-gray-900 dark:text-white">
             Join <span className="text-[#F5726B]">RecipeHub</span>
           </h1>
-          <p className="mt-2 text-gray-600">
+          <p className="mt-2 text-gray-600 dark:text-gray-400">
             Create your account and start sharing recipes.
           </p>
         </div>
 
         <form onSubmit={handleRegister} className="space-y-5">
           <div>
-            <label className="block mb-2 text-sm font-semibold text-gray-700">
+            <label className="block mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
               Name
             </label>
             <input
@@ -103,12 +103,12 @@ export default function SignupForm({ redirectTo = "/" }) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Maria Mou"
-              className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 placeholder:text-gray-500 focus:outline-none focus:border-[#F5726B]"
+              className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:border-[#F5726B] transition-colors"
             />
           </div>
 
           <div>
-            <label className="block mb-2 text-sm font-semibold text-gray-700">
+            <label className="block mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
               Email
             </label>
             <input
@@ -117,12 +117,12 @@ export default function SignupForm({ redirectTo = "/" }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="maria@example.com"
-              className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 placeholder:text-gray-500 focus:outline-none focus:border-[#F5726B]"
+              className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:border-[#F5726B] transition-colors"
             />
           </div>
 
           <div>
-            <label className="block mb-2 text-sm font-semibold text-gray-700">
+            <label className="block mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
               Photo URL
             </label>
             <input
@@ -130,12 +130,12 @@ export default function SignupForm({ redirectTo = "/" }) {
               value={image}
               onChange={(e) => setImage(e.target.value)}
               placeholder="https://example.com/photo.jpg"
-              className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 placeholder:text-gray-500 focus:outline-none focus:border-[#F5726B]"
+              className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:border-[#F5726B] transition-colors"
             />
           </div>
 
           <div>
-            <label className="block mb-2 text-sm font-semibold text-gray-700">
+            <label className="block mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
               Password
             </label>
             <div className="relative">
@@ -145,25 +145,25 @@ export default function SignupForm({ redirectTo = "/" }) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter password"
-                className="w-full px-4 py-3 pr-20 rounded-xl border border-gray-300 bg-white text-gray-900 placeholder:text-gray-500 focus:outline-none focus:border-[#F5726B]"
+                className="w-full px-4 py-3 pr-20 rounded-xl border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:border-[#F5726B] transition-colors"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-[#F5726B] cursor-pointer"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-[#F5726B] hover:text-[#e85f58] transition-colors cursor-pointer"
               >
                 {showPassword ? "Hide" : "Show"}
               </button>
             </div>
 
             <div className="mt-3 space-y-1">
-              <p className={`text-xs ${password.length >= 8 ? "text-green-600" : "text-gray-500"}`}>
+              <p className={`text-xs ${password.length >= 8 ? "text-green-600 dark:text-green-400" : "text-gray-500 dark:text-gray-400"}`}>
                 ✓ Minimum 8 characters
               </p>
-              <p className={`text-xs ${/[A-Z]/.test(password) ? "text-green-600" : "text-gray-500"}`}>
+              <p className={`text-xs ${/[A-Z]/.test(password) ? "text-green-600 dark:text-green-400" : "text-gray-500 dark:text-gray-400"}`}>
                 ✓ One uppercase letter
               </p>
-              <p className={`text-xs ${/[a-z]/.test(password) ? "text-green-600" : "text-gray-500"}`}>
+              <p className={`text-xs ${/[a-z]/.test(password) ? "text-green-600 dark:text-green-400" : "text-gray-500 dark:text-gray-400"}`}>
                 ✓ One lowercase letter
               </p>
             </div>
@@ -172,34 +172,37 @@ export default function SignupForm({ redirectTo = "/" }) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 rounded-xl bg-[#F5726B] text-white font-bold hover:bg-[#e85f58] transition-all disabled:opacity-50 cursor-pointer"
+            className="w-full py-3 rounded-xl bg-[#F5726B] hover:bg-[#e85f58] text-white font-bold transition-all disabled:opacity-50 cursor-pointer"
           >
             {loading ? "Creating Account..." : "Create Account"}
           </button>
         </form>
 
         <div className="flex items-center gap-3 my-5">
-          <div className="flex-1 h-px bg-gray-200" />
-          <span className="text-gray-400 text-xs">Or continue with</span>
-          <div className="flex-1 h-px bg-gray-200" />
+          <div className="flex-1 h-px bg-gray-200 dark:bg-zinc-700" />
+          <span className="text-gray-400 dark:text-gray-500 text-xs">Or continue with</span>
+          <div className="flex-1 h-px bg-gray-200 dark:bg-zinc-700" />
         </div>
 
         <button
           onClick={handleGoogleSignup}
           disabled={isGoogleLoading}
-          className="w-full py-3 rounded-xl bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-900 text-sm font-semibold flex items-center justify-center gap-3 transition-all disabled:opacity-60 cursor-pointer"
+          className="w-full py-3 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 hover:bg-gray-100 dark:hover:bg-zinc-700 text-gray-900 dark:text-white text-sm font-semibold flex items-center justify-center gap-3 transition-all disabled:opacity-60 cursor-pointer"
         >
           {isGoogleLoading ? (
-            <div className="w-4 h-4 border-2 border-gray-400 border-t-gray-700 rounded-full animate-spin" />
+            <div className="w-4 h-4 border-2 border-gray-400 dark:border-gray-500 border-t-gray-700 dark:border-t-white rounded-full animate-spin" />
           ) : (
             <FcGoogle className="w-5 h-5" />
           )}
           Continue with Google
         </button>
 
-        <p className="text-center mt-6 text-sm text-gray-600">
+        <p className="text-center mt-6 text-sm text-gray-600 dark:text-gray-400">
           Already have an account?
-          <Link href="/login" className="ml-1 text-[#F5726B] font-semibold hover:underline">
+          <Link
+            href="/auth/login"
+            className="ml-1 text-[#F5726B] font-semibold hover:underline"
+          >
             Sign In
           </Link>
         </p>

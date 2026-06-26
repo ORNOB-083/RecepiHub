@@ -6,6 +6,28 @@ import { useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
 import { authClient } from "@/lib/auth-client";
 import { User, Settings, LogOut, Sun, Moon } from "lucide-react";
+import toast from "react-hot-toast";
+
+const BASE_URL = (process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:8000').replace(/\/$/, '');
+const SYNCED_KEY = 'recipehub_user_synced';
+
+// ─── User Sync (optional, but ensures backend user exists) ──
+async function syncUser(email, name, image) {
+  try {
+    const res = await fetch(`${BASE_URL}/api/auth/sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, name, image: image || 'https://placehold.co/100' }),
+    });
+    if (res.ok) {
+      localStorage.setItem(SYNCED_KEY, 'true');
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
 
 export default function Navbar() {
   const [session, setSession] = useState(null);
@@ -19,6 +41,7 @@ export default function Navbar() {
   const dropdownRef = useRef(null);
   const mobileMenuRef = useRef(null);
 
+  // ─── Load session & theme ──────────────────────────────────
   useEffect(() => {
     const loadSession = async () => {
       try {
@@ -30,6 +53,11 @@ export default function Navbar() {
             email: data.user.email,
             image: data.user.image,
           }));
+          // Sync user with backend if not synced yet
+          const synced = localStorage.getItem(SYNCED_KEY);
+          if (!synced) {
+            await syncUser(data.user.email, data.user.name, data.user.image);
+          }
         } else {
           localStorage.removeItem("session_user");
         }
@@ -41,6 +69,7 @@ export default function Navbar() {
       }
     };
 
+    // Load cached session
     const cached = localStorage.getItem("session_user");
     if (cached) {
       try {
@@ -52,32 +81,33 @@ export default function Navbar() {
       }
     }
 
-    setIsLoading(false);
+    // Load theme
+    const savedTheme = localStorage.getItem("theme");
+    const isDark = savedTheme === "dark";
+    setIsDarkMode(isDark);
+    document.documentElement.classList.toggle("dark", isDark);
+
     loadSession();
   }, []);
 
-  useEffect(() => {
-    const savedTheme = localStorage.getItem("theme");
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setIsDarkMode(savedTheme === "dark");
-  }, []);
-
+  // ─── Close dropdown on outside click ──────────────────────
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsDropdownOpen(false);
       }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // ─── Close mobile menu on route change ─────────────────────
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMobileMenuOpen(false);
   }, [pathname]);
 
+  // ─── Theme toggle ──────────────────────────────────────────
   const toggleTheme = () => {
     const nextTheme = !isDarkMode;
     setIsDarkMode(nextTheme);
@@ -85,17 +115,21 @@ export default function Navbar() {
     localStorage.setItem("theme", nextTheme ? "dark" : "light");
   };
 
+  // ─── Logout ────────────────────────────────────────────────
   const handleLogout = async () => {
     try {
       await authClient.signOut();
       setSession(null);
       localStorage.removeItem("session_user");
+      localStorage.removeItem(SYNCED_KEY);
       setIsDropdownOpen(false);
       setIsMobileMenuOpen(false);
-      router.push("/login");
+      toast.success("Logged out successfully");
+      router.push("/auth/login");
       router.refresh();
     } catch (error) {
       console.error("Logout failed:", error);
+      toast.error("Logout failed");
     }
   };
 
@@ -105,7 +139,6 @@ export default function Navbar() {
       : "text-gray-700 dark:text-gray-200 hover:text-[#F5726B] dark:hover:text-[#F5726B] transition-colors duration-200";
   };
 
-  // ✅ Updated public links – Browse Recipes now points to /recipes
   const publicLinks = [
     { name: "Home", path: "/" },
     { name: "Browse Recipes", path: "/recipes" },
@@ -218,7 +251,7 @@ export default function Navbar() {
             ) : !isLoading ? (
               <div className="hidden md:flex items-center gap-3">
                 <Link
-                  href="/login"
+                  href="/auth/login"
                   className="text-gray-700 dark:text-gray-200 hover:text-[#F5726B] dark:hover:text-[#F5726B] transition-colors duration-200 px-3 py-2"
                 >
                   Login
@@ -307,7 +340,7 @@ export default function Navbar() {
               ) : !isLoading ? (
                 <>
                   <Link
-                    href="/login"
+                    href="/auth/login"
                     className="py-2 text-gray-700 dark:text-gray-200 hover:text-[#F5726B] transition-colors duration-200"
                     onClick={handleMobileLinkClick}
                   >

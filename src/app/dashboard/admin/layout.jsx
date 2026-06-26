@@ -3,22 +3,6 @@ import Link from "next/link";
 export default function DashboardLayout({ children }) {
   return (
     <div className="min-h-screen flex bg-gray-100 dark:bg-zinc-950">
-
-      {/* SIDEBAR */}
-      <aside className="w-64 bg-white dark:bg-zinc-900 p-5 space-y-4">
-        <h2 className="text-xl font-bold text-pink-500">
-          Admin Panel
-        </h2>
-
-        <nav className="space-y-3">
-          <Link href="/dashboard" className="block">Overview</Link>
-          <Link href="/dashboard/users" className="block">Users</Link>
-          <Link href="/dashboard/recipes" className="block">Recipes</Link>
-          <Link href="/dashboard/reports" className="block">Reports</Link>
-        </nav>
-      </aside>
-
-      {/* MAIN */}
       <main className="flex-1 p-6">
         {children}
       </main>

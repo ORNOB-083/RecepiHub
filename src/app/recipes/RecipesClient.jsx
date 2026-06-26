@@ -322,6 +322,7 @@ export default function RecipesClient({ initialData, initialParams = {} }) {
         }
     }, [search, selectedCategory, sortBy, sortOrder, page]);
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     useEffect(() => { fetchRecipes(); }, [fetchRecipes]);
 
     // ── fetch favorites ──────────────────────────────────────

@@ -1,19 +1,45 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { authClient } from "@/lib/auth-client";
-import { toast, ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { useSession, authClient } from "@/lib/auth-client";
+import toast from "react-hot-toast";
 import {
-  LayoutDashboard, User, Heart, CreditCard, 
-  Plus, UtensilsCrossed, FileText, AlertTriangle,
-  Users, LogOut, ChevronLeft, ChevronRight, 
+  LayoutDashboard, User, Heart, CreditCard,
+  Plus, UtensilsCrossed, AlertTriangle,
+  Users, LogOut, ChevronLeft, ChevronRight,
   Shield, ChefHat, Menu, X, Star
 } from "lucide-react";
 
+// ─── Constants ────────────────────────────────────────────────
+const BASE_URL = (process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:8000').replace(/\/$/, '');
+const SYNCED_KEY = 'recipehub_user_synced';
+
+// ─── User Sync ────────────────────────────────────────────────
+async function syncUser(email, name, image) {
+  try {
+    const res = await fetch(`${BASE_URL}/api/auth/sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, name, image: image || 'https://placehold.co/100' }),
+    });
+    if (res.ok) {
+      localStorage.setItem(SYNCED_KEY, 'true');
+      console.log('✅ User synced to backend');
+      return true;
+    } else {
+      console.error('Sync failed:', await res.text());
+      return false;
+    }
+  } catch (err) {
+    console.error('Sync error:', err);
+    return false;
+  }
+}
+
+// ─── Navigation Config ──────────────────────────────────────
 const NAV_LINKS = {
   user: [
     { label: "Overview", href: "/dashboard/user", icon: LayoutDashboard },
@@ -21,13 +47,6 @@ const NAV_LINKS = {
     { label: "Favorite Recipes", href: "/dashboard/user/favorites", icon: Heart },
     { label: "Purchased Recipes", href: "/dashboard/user/purchased", icon: UtensilsCrossed },
     { label: "Order History", href: "/dashboard/user/orders", icon: CreditCard },
-  ],
-  vendor: [
-    { label: "Overview", href: "/dashboard/chef", icon: LayoutDashboard },
-    { label: "Chef Profile", href: "/dashboard/chef/profile", icon: User },
-    { label: "Add New Recipe", href: "/dashboard/chef/add-recipe", icon: Plus },
-    { label: "My Recipes", href: "/dashboard/chef/my-recipes", icon: UtensilsCrossed },
-    { label: "Earnings Log", href: "/dashboard/chef/earnings", icon: CreditCard },
   ],
   admin: [
     { label: "Overview", href: "/dashboard/admin", icon: LayoutDashboard },
@@ -44,6 +63,7 @@ const ROLE_CONFIG = {
   admin: { label: "Admin", color: "from-zinc-800 to-zinc-950 dark:from-zinc-700 dark:to-zinc-900", icon: Shield },
 };
 
+// ─── Component ──────────────────────────────────────────────
 export default function DashboardSidebar({ user: serverUser }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -52,27 +72,35 @@ export default function DashboardSidebar({ user: serverUser }) {
 
   const user = serverUser;
   const role = user?.role || "user";
-  
   const links = NAV_LINKS[role] || NAV_LINKS.user;
   const roleConfig = ROLE_CONFIG[role] || ROLE_CONFIG.user;
   const RoleIcon = roleConfig.icon;
 
+  // ── Sync user on mount ────────────────────────────────────
+  useEffect(() => {
+    if (user?.email) {
+      const synced = localStorage.getItem(SYNCED_KEY);
+      if (!synced) {
+        syncUser(user.email, user.name, user.image);
+      }
+    }
+  }, [user]);
+
+  // ── Sign Out ──────────────────────────────────────────────
   const handleSignOut = async () => {
     try {
       await authClient.signOut();
       toast.success("Signed out successfully!");
-      setTimeout(() => {
-        router.push("/");
-      }, 1200);
+      setTimeout(() => router.push("/"), 1200);
     } catch (err) {
-      toast.error("Sign out execution failed.");
+      toast.error("Sign out failed.");
     }
   };
 
+  // ── Sidebar Content ──────────────────────────────────────
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-white dark:bg-zinc-950 text-black dark:text-white">
-      <ToastContainer position="top-right" autoClose={1500} />
-
+      {/* Header */}
       <div className={`flex items-center justify-between p-5 border-b border-gray-100 dark:border-zinc-900 ${isCollapsed ? "px-3" : ""}`}>
         {!isCollapsed && (
           <Link href="/" className="flex items-center gap-2">
@@ -89,6 +117,7 @@ export default function DashboardSidebar({ user: serverUser }) {
         </button>
       </div>
 
+      {/* User Info */}
       <div className={`p-4 border-b border-gray-100 dark:border-zinc-900 ${isCollapsed ? "px-3" : ""}`}>
         <div className={`flex items-center gap-3 ${isCollapsed ? "justify-center" : ""}`}>
           <div className="relative flex-shrink-0">
@@ -115,6 +144,7 @@ export default function DashboardSidebar({ user: serverUser }) {
         </div>
       </div>
 
+      {/* Navigation Links */}
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {links.map((link) => {
           const isActive = pathname === link.href;
@@ -124,11 +154,10 @@ export default function DashboardSidebar({ user: serverUser }) {
               key={link.href}
               href={link.href}
               onClick={() => setIsMobileOpen(false)}
-              className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-bold transition-all duration-200 group relative ${
-                isActive
+              className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-bold transition-all duration-200 group relative ${isActive
                   ? "bg-[#F5726B] text-white shadow-lg shadow-[#F5726B]/10"
                   : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-zinc-900 hover:text-[#F5726B] dark:hover:text-[#F5726B]"
-              } ${isCollapsed ? "justify-center px-2" : ""}`}
+                } ${isCollapsed ? "justify-center px-2" : ""}`}
             >
               <Icon className="w-5 h-5 flex-shrink-0" />
               {!isCollapsed && <span>{link.label}</span>}
@@ -143,12 +172,12 @@ export default function DashboardSidebar({ user: serverUser }) {
         })}
       </nav>
 
+      {/* Sign Out */}
       <div className="p-3 border-t border-gray-100 dark:border-zinc-900">
         <button
           onClick={handleSignOut}
-          className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/10 transition-all cursor-pointer ${
-            isCollapsed ? "justify-center" : ""
-          }`}
+          className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/10 transition-all cursor-pointer ${isCollapsed ? "justify-center" : ""
+            }`}
         >
           <LogOut className="w-5 h-5 flex-shrink-0" />
           {!isCollapsed && <span>Sign Out</span>}
@@ -157,8 +186,10 @@ export default function DashboardSidebar({ user: serverUser }) {
     </div>
   );
 
+  // ─── Render ──────────────────────────────────────────────
   return (
     <>
+      {/* Mobile Menu Toggle */}
       <button
         onClick={() => setIsMobileOpen(true)}
         className="lg:hidden fixed top-4 left-4 z-40 w-10 h-10 rounded-xl bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 shadow-md flex items-center justify-center text-gray-600 dark:text-gray-300 cursor-pointer"
@@ -166,12 +197,15 @@ export default function DashboardSidebar({ user: serverUser }) {
         <Menu className="w-5 h-5" />
       </button>
 
-      <aside className={`hidden lg:flex flex-col h-screen sticky top-0 bg-white dark:bg-zinc-950 border-r border-gray-100 dark:border-zinc-900 shadow-sm transition-all duration-300 z-30 ${
-        isCollapsed ? "w-16" : "w-64"
-      }`}>
+      {/* Desktop Sidebar */}
+      <aside
+        className={`hidden lg:flex flex-col h-screen sticky top-0 bg-white dark:bg-zinc-950 border-r border-gray-100 dark:border-zinc-900 shadow-sm transition-all duration-300 z-30 ${isCollapsed ? "w-16" : "w-64"
+          }`}
+      >
         {SidebarContent()}
       </aside>
 
+      {/* Mobile Sidebar (overlay) */}
       <AnimatePresence>
         {isMobileOpen && (
           <>
