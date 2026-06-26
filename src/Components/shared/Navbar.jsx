@@ -4,14 +4,13 @@ import Link from "next/link";
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
-import { authClient } from "@/lib/auth-client";
+import { useSession, authClient } from "@/lib/auth-client";
 import { User, Settings, LogOut, Sun, Moon } from "lucide-react";
 import toast from "react-hot-toast";
 
 const BASE_URL = (process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:8000').replace(/\/$/, '');
 const SYNCED_KEY = 'recipehub_user_synced';
 
-// ─── User Sync (optional, but ensures backend user exists) ──
 async function syncUser(email, name, image) {
   try {
     const res = await fetch(`${BASE_URL}/api/auth/sync`, {
@@ -30,67 +29,37 @@ async function syncUser(email, name, image) {
 }
 
 export default function Navbar() {
-  const [session, setSession] = useState(null);
+  const { data: session, status } = useSession();
+  const user = session?.user;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
 
   const router = useRouter();
   const pathname = usePathname();
   const dropdownRef = useRef(null);
   const mobileMenuRef = useRef(null);
 
-  // ─── Load session & theme ──────────────────────────────────
+  // ─── Load theme ──────────────────────────────────────────
   useEffect(() => {
-    const loadSession = async () => {
-      try {
-        const { data } = await authClient.getSession();
-        setSession(data || null);
-        if (data?.user) {
-          localStorage.setItem("session_user", JSON.stringify({
-            name: data.user.name,
-            email: data.user.email,
-            image: data.user.image,
-          }));
-          // Sync user with backend if not synced yet
-          const synced = localStorage.getItem(SYNCED_KEY);
-          if (!synced) {
-            await syncUser(data.user.email, data.user.name, data.user.image);
-          }
-        } else {
-          localStorage.removeItem("session_user");
-        }
-      } catch {
-        setSession(null);
-        localStorage.removeItem("session_user");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    // Load cached session
-    const cached = localStorage.getItem("session_user");
-    if (cached) {
-      try {
-        const user = JSON.parse(cached);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setSession({ user });
-      } catch {
-        localStorage.removeItem("session_user");
-      }
-    }
-
-    // Load theme
     const savedTheme = localStorage.getItem("theme");
     const isDark = savedTheme === "dark";
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsDarkMode(isDark);
     document.documentElement.classList.toggle("dark", isDark);
-
-    loadSession();
   }, []);
 
-  // ─── Close dropdown on outside click ──────────────────────
+  // ─── Sync user when authenticated ──────────────────────
+  useEffect(() => {
+    if (status === 'authenticated' && user?.email) {
+      const synced = localStorage.getItem(SYNCED_KEY);
+      if (!synced) {
+        syncUser(user.email, user.name, user.image);
+      }
+    }
+  }, [status, user]);
+
+  // ─── Close dropdown on outside click ──────────────────
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -101,13 +70,13 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // ─── Close mobile menu on route change ─────────────────────
+  // ─── Close mobile menu on route change ────────────────
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMobileMenuOpen(false);
   }, [pathname]);
 
-  // ─── Theme toggle ──────────────────────────────────────────
+  // ─── Theme toggle ──────────────────────────────────────
   const toggleTheme = () => {
     const nextTheme = !isDarkMode;
     setIsDarkMode(nextTheme);
@@ -115,15 +84,11 @@ export default function Navbar() {
     localStorage.setItem("theme", nextTheme ? "dark" : "light");
   };
 
-  // ─── Logout ────────────────────────────────────────────────
+  // ─── Logout ────────────────────────────────────────────
   const handleLogout = async () => {
     try {
       await authClient.signOut();
-      setSession(null);
-      localStorage.removeItem("session_user");
       localStorage.removeItem(SYNCED_KEY);
-      setIsDropdownOpen(false);
-      setIsMobileMenuOpen(false);
       toast.success("Logged out successfully");
       router.push("/auth/login");
       router.refresh();
@@ -172,7 +137,7 @@ export default function Navbar() {
               </Link>
             ))}
 
-            {session?.user &&
+            {user &&
               authLinks.map((link) => (
                 <Link
                   key={link.path}
@@ -193,30 +158,34 @@ export default function Navbar() {
               {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
 
-            {session?.user ? (
+            {user ? (
               <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                   className="focus:outline-none focus:ring-2 focus:ring-[#F5726B] rounded-full transition-shadow cursor-pointer"
                   aria-label="User menu"
                 >
-                  <Image
-                    src={session.user.image || "https://placehold.co/100"}
-                    alt={session.user.name || "User"}
-                    width={36}
-                    height={36}
-                    className="rounded-full border-2 border-gray-200 dark:border-zinc-800 object-cover hover:border-[#F5726B] transition-colors duration-200"
-                  />
+                  {/* FIX: Avatar container with fixed 36x36 crop */}
+                  <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-gray-200 dark:border-zinc-800 hover:border-[#F5726B] transition-colors duration-200 relative flex-shrink-0">
+                    <Image
+                      src={user.image || "https://placehold.co/100"}
+                      alt={user.name || "User"}
+                      fill
+                      className="object-cover"
+                      sizes="36px"
+                      priority
+                    />
+                  </div>
                 </button>
 
                 {isDropdownOpen && (
                   <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 shadow-xl rounded-lg overflow-hidden text-gray-700 dark:text-gray-200 animate-fadeIn">
                     <div className="px-4 py-3 border-b border-gray-200 dark:border-zinc-800">
                       <p className="font-semibold text-sm truncate">
-                        {session.user.name || "User"}
+                        {user.name || "User"}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                        {session.user.email}
+                        {user.email}
                       </p>
                     </div>
 
@@ -248,7 +217,9 @@ export default function Navbar() {
                   </div>
                 )}
               </div>
-            ) : !isLoading ? (
+            ) : status === 'loading' ? (
+              <div className="w-[120px] h-8 hidden md:block" />
+            ) : (
               <div className="hidden md:flex items-center gap-3">
                 <Link
                   href="/auth/login"
@@ -263,8 +234,6 @@ export default function Navbar() {
                   Register
                 </Link>
               </div>
-            ) : (
-              <div className="w-[120px] h-8 hidden md:block" />
             )}
 
             <button
@@ -318,7 +287,7 @@ export default function Navbar() {
                 </Link>
               ))}
 
-              {session?.user ? (
+              {user ? (
                 <>
                   {authLinks.map((link) => (
                     <Link
@@ -337,7 +306,7 @@ export default function Navbar() {
                     Logout
                   </button>
                 </>
-              ) : !isLoading ? (
+              ) : status !== 'loading' ? (
                 <>
                   <Link
                     href="/auth/login"
@@ -362,34 +331,15 @@ export default function Navbar() {
 
       <style jsx>{`
         @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(-10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
         }
-
         @keyframes slideDown {
-          from {
-            opacity: 0;
-            transform: translateY(-10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
         }
-
-        .animate-fadeIn {
-          animation: fadeIn 0.2s ease-out;
-        }
-
-        .animate-slideDown {
-          animation: slideDown 0.2s ease-out;
-        }
+        .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
+        .animate-slideDown { animation: slideDown 0.2s ease-out; }
       `}</style>
     </nav>
   );
