@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import RecipesClient from './RecipesClient';
 
-const API_BASE = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:8000/';
+const SERVER_URL = (process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:8000').replace(/\/$/, '');
 
 async function getRecipes(searchParams = {}) {
     const params = new URLSearchParams();
@@ -13,7 +13,7 @@ async function getRecipes(searchParams = {}) {
     if (!params.has('page')) params.set('page', '1');
     if (!params.has('limit')) params.set('limit', '9');
 
-    const res = await fetch(`${API_BASE}api/recipes?${params.toString()}`, {
+    const res = await fetch(`${SERVER_URL}/api/recipes?${params.toString()}`, {
         cache: 'no-store',
     });
 

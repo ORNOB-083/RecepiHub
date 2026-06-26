@@ -45,6 +45,7 @@ export default function Navbar() {
     if (cached) {
       try {
         const user = JSON.parse(cached);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSession({ user });
       } catch {
         localStorage.removeItem("session_user");
@@ -57,6 +58,7 @@ export default function Navbar() {
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsDarkMode(savedTheme === "dark");
   }, []);
 
@@ -72,6 +74,7 @@ export default function Navbar() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMobileMenuOpen(false);
   }, [pathname]);
 

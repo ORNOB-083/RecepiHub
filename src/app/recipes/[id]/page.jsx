@@ -1,13 +1,11 @@
 import { Suspense } from 'react';
-import { notFound, redirect } from 'next/navigation';
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth'; // Adjust import to your auth setup
+import { notFound } from 'next/navigation';
 import RecipeDetailsClient from './RecipeDetailsClient';
 
-const API_BASE = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:8000/';
+const BASE_URL = (process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:8000').replace(/\/$/, '');
 
 async function getRecipe(id) {
-    const res = await fetch(`${API_BASE}api/recipes/${id}`, {
+    const res = await fetch(`${BASE_URL}/api/recipes/${id}`, {
         cache: 'no-store',
     });
 
@@ -21,16 +19,9 @@ async function getRecipe(id) {
 
 export default async function RecipeDetailsPage({ params }) {
     const { id } = await params;
-
-    // Optional: check authentication (if you want to protect the page)
-    // const session = await auth.api.getSession({ headers: await headers() });
-    // if (!session) redirect(`/login?redirect=/recipes/${id}`);
-
     const recipe = await getRecipe(id);
-    if (!recipe) notFound();
 
-    // You can also fetch the user's purchase status or favorites list here,
-    // but we'll handle it client-side for simplicity.
+    if (!recipe) notFound();
 
     return (
         <Suspense

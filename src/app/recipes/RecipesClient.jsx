@@ -1,83 +1,64 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
-    Search,
-    Clock,
-    Star,
-    Flame,
-    Utensils,
-    Shield,
-    X,
-    ChefHat,
-    Heart,
-    Sparkles,
-    Flag,
-    ShoppingCart,
-    Crown,
-    Loader2,
+    Search, Clock, Star, Flame, Utensils, Shield,
+    X, ChefHat, Heart, Sparkles, Flag, ShoppingCart,
+    Crown, Loader2,
 } from 'lucide-react';
 import { useSession, authClient } from '@/lib/auth-client';
 import toast from 'react-hot-toast';
 
-// ---------------------- CONFIG ----------------------
+const BASE_URL = (process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:8000').replace(/\/$/, '');
+const SYNCED_KEY = 'recipehub_user_synced';
+
+// ─── USER SYNC ────────────────────────────────────────────────
+async function syncUser(email, name, image) {
+    try {
+        const res = await fetch(`${BASE_URL}/api/auth/sync`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, name, image: image || 'https://placehold.co/100' }),
+        });
+        if (res.ok) {
+            localStorage.setItem(SYNCED_KEY, 'true');
+            console.log('✅ User synced to backend');
+            return true;
+        } else {
+            const text = await res.text();
+            console.error('Sync failed:', text);
+            return false;
+        }
+    } catch (err) {
+        console.error('Sync error:', err);
+        return false;
+    }
+}
+
+// ─── CONSTANTS ────────────────────────────────────────────────
 const CATEGORY_CONFIG = {
-    appetizer: {
-        icon: Utensils,
-        color: 'from-amber-500 to-orange-500',
-        bg: 'bg-amber-50 dark:bg-amber-900/20',
-        text: 'text-amber-600 dark:text-amber-400',
-    },
-    'main course': {
-        icon: ChefHat,
-        color: 'from-emerald-500 to-teal-500',
-        bg: 'bg-emerald-50 dark:bg-emerald-900/20',
-        text: 'text-emerald-600 dark:text-emerald-400',
-    },
-    dessert: {
-        icon: Sparkles,
-        color: 'from-pink-500 to-rose-500',
-        bg: 'bg-pink-50 dark:bg-pink-900/20',
-        text: 'text-pink-600 dark:text-pink-400',
-    },
-    soup: {
-        icon: Flame,
-        color: 'from-red-500 to-orange-500',
-        bg: 'bg-red-50 dark:bg-red-900/20',
-        text: 'text-red-600 dark:text-red-400',
-    },
-    salad: {
-        icon: Utensils,
-        color: 'from-green-500 to-emerald-500',
-        bg: 'bg-green-50 dark:bg-green-900/20',
-        text: 'text-green-600 dark:text-green-400',
-    },
-    beverage: {
-        icon: Sparkles,
-        color: 'from-cyan-500 to-blue-500',
-        bg: 'bg-cyan-50 dark:bg-cyan-900/20',
-        text: 'text-cyan-600 dark:text-cyan-400',
-    },
+    appetizer: { icon: Utensils, color: 'from-amber-500 to-orange-500', bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-600 dark:text-amber-400' },
+    'main course': { icon: ChefHat, color: 'from-emerald-500 to-teal-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20', text: 'text-emerald-600 dark:text-emerald-400' },
+    dessert: { icon: Sparkles, color: 'from-pink-500 to-rose-500', bg: 'bg-pink-50 dark:bg-pink-900/20', text: 'text-pink-600 dark:text-pink-400' },
+    soup: { icon: Flame, color: 'from-red-500 to-orange-500', bg: 'bg-red-50 dark:bg-red-900/20', text: 'text-red-600 dark:text-red-400' },
+    salad: { icon: Utensils, color: 'from-green-500 to-emerald-500', bg: 'bg-green-50 dark:bg-green-900/20', text: 'text-green-600 dark:text-green-400' },
+    beverage: { icon: Sparkles, color: 'from-cyan-500 to-blue-500', bg: 'bg-cyan-50 dark:bg-cyan-900/20', text: 'text-cyan-600 dark:text-cyan-400' },
 };
-
-const DEFAULT_CONFIG = {
-    icon: Utensils,
-    color: 'from-gray-500 to-gray-600',
-    bg: 'bg-gray-50 dark:bg-gray-800/20',
-    text: 'text-gray-600 dark:text-gray-400',
-};
-
+const DEFAULT_CONFIG = { icon: Utensils, color: 'from-gray-500 to-gray-600', bg: 'bg-gray-50 dark:bg-gray-800/20', text: 'text-gray-600 dark:text-gray-400' };
 const REPORT_REASONS = ['Spam', 'Offensive Content', 'Copyright Issue', 'Other'];
 
-const API_BASE = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:8000/';
+// ─── AUTH HELPER ──────────────────────────────────────────────
+async function getSessionEmail() {
+    const session = await authClient.getSession();
+    return session?.data?.user?.email || null;
+}
 
-// ---------------------- MODALS ----------------------
+// ─── PURCHASE MODAL ────────────────────────────────────────────
 function PurchaseModal({ recipe, onClose }) {
-    const router = useRouter();
     const [isLoading, setIsLoading] = useState(false);
 
     const handlePurchase = async () => {
@@ -90,7 +71,7 @@ function PurchaseModal({ recipe, onClose }) {
                 return;
             }
 
-            const res = await fetch(`${API_BASE}api/payments/purchase-recipe`, {
+            const res = await fetch(`${BASE_URL}/api/payments/recipe-checkout`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -101,12 +82,12 @@ function PurchaseModal({ recipe, onClose }) {
 
             const data = await res.json();
             if (data.url) {
-                window.location.href = data.url; // redirect to Stripe Checkout
+                window.location.href = data.url;
             } else {
                 toast.error(data.message || 'Payment initiation failed');
             }
         } catch (err) {
-            console.error(err);
+            console.error('Purchase error:', err);
             toast.error('Something went wrong');
         } finally {
             setIsLoading(false);
@@ -122,7 +103,6 @@ function PurchaseModal({ recipe, onClose }) {
             onClick={onClose}
         >
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-
             <motion.div
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -173,7 +153,6 @@ function PurchaseModal({ recipe, onClose }) {
                             <>Purchase Now — ${((recipe.price || 4.99) * 1.03).toFixed(2)}</>
                         )}
                     </button>
-
                     <p className="text-center text-xs text-gray-400 flex items-center justify-center gap-1">
                         <Shield className="w-3 h-3" /> Secure payment via Stripe
                     </p>
@@ -183,6 +162,7 @@ function PurchaseModal({ recipe, onClose }) {
     );
 }
 
+// ─── REPORT MODAL ──────────────────────────────────────────────
 function ReportModal({ recipeId, onClose }) {
     const [reason, setReason] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -192,35 +172,33 @@ function ReportModal({ recipeId, onClose }) {
             toast.error('Please select a reason');
             return;
         }
-
         setIsLoading(true);
         try {
-            const session = await authClient.getSession();
-            const token = session?.data?.session?.token;
-            if (!token) {
+            const email = await getSessionEmail();
+            if (!email) {
                 toast.error('Please sign in to report');
                 return;
             }
 
-            const res = await fetch(`${API_BASE}api/reports`, {
+            const res = await fetch(`${BASE_URL}/api/reports`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    'user-email': email,
                 },
                 body: JSON.stringify({ recipeId, reason }),
             });
 
-            const data = await res.json();
-            if (data.success) {
+            if (res.ok) {
                 toast.success('Report submitted successfully');
                 onClose();
             } else {
+                const data = await res.json();
                 toast.error(data.message || 'Failed to submit report');
             }
         } catch (err) {
-            console.error(err);
-            toast.error('Something went wrong');
+            console.error('Report error:', err);
+            toast.error(err.message || 'Something went wrong');
         } finally {
             setIsLoading(false);
         }
@@ -235,7 +213,6 @@ function ReportModal({ recipeId, onClose }) {
             onClick={onClose}
         >
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-
             <motion.div
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -245,9 +222,7 @@ function ReportModal({ recipeId, onClose }) {
             >
                 <div className="p-5 space-y-4">
                     <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
-                            Report Recipe
-                        </h3>
+                        <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Report Recipe</h3>
                         <button
                             onClick={onClose}
                             className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -255,11 +230,7 @@ function ReportModal({ recipeId, onClose }) {
                             <X className="w-5 h-5 text-gray-500" />
                         </button>
                     </div>
-
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Why are you reporting this recipe?
-                    </p>
-
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Why are you reporting this recipe?</p>
                     <div className="space-y-2">
                         {REPORT_REASONS.map((r) => (
                             <label
@@ -278,7 +249,6 @@ function ReportModal({ recipeId, onClose }) {
                             </label>
                         ))}
                     </div>
-
                     <button
                         onClick={handleReport}
                         disabled={isLoading || !reason}
@@ -292,56 +262,58 @@ function ReportModal({ recipeId, onClose }) {
     );
 }
 
-// ---------------------- MAIN CLIENT COMPONENT ----------------------
+// ─── MAIN ──────────────────────────────────────────────────────
 export default function RecipesClient({ initialData, initialParams = {} }) {
     const router = useRouter();
-    const searchParams = useSearchParams();
+    const { data: session, status } = useSession();
+    const user = session?.user;
+    const userEmail = user?.email;
 
-    // State
     const [recipes, setRecipes] = useState(initialData?.recipes || []);
-    const [total, setTotal] = useState(initialData?.pagination?.total || 0);
+    const [total, setTotal] = useState(initialData?.total || 0);
     const [isLoading, setIsLoading] = useState(false);
-
-    // Filters
     const [search, setSearch] = useState(initialParams?.search || '');
-    const [selectedCategory, setSelectedCategory] = useState(
-        initialParams?.category || 'all'
-    );
-    const [sortBy, setSortBy] = useState(initialParams?.sortBy || 'createdAt');
-    const [sortOrder, setSortOrder] = useState(initialParams?.sortOrder || 'desc');
+    const [selectedCategory, setSelectedCategory] = useState(initialParams?.category || 'all');
+    const [sortBy, setSortBy] = useState('createdAt');
+    const [sortOrder, setSortOrder] = useState('desc');
     const [page, setPage] = useState(parseInt(initialParams?.page) || 1);
     const perPage = 9;
 
-    // Modal states
     const [purchaseRecipe, setPurchaseRecipe] = useState(null);
     const [reportRecipeId, setReportRecipeId] = useState(null);
-
-    // Auth
-    const { data: session } = useSession();
-    const user = session?.user;
-
-    // Favorited IDs (local cache)
     const [favoritedIds, setFavoritedIds] = useState([]);
 
-    // Categories from recipes
     const categories = ['all', ...new Set(recipes.map((r) => r.category).filter(Boolean))];
 
-    // Fetch recipes with current filters
+    // ── Sync user ──────────────────────────────────────────────
+    useEffect(() => {
+        if (status === 'authenticated' && userEmail) {
+            const synced = localStorage.getItem(SYNCED_KEY);
+            if (!synced) {
+                syncUser(userEmail, user?.name, user?.image);
+            }
+        }
+    }, [status, userEmail, user?.name, user?.image]);
+
+    // ── fetch recipes ──────────────────────────────────────────
     const fetchRecipes = useCallback(async () => {
         setIsLoading(true);
         try {
             const params = new URLSearchParams();
             if (search) params.set('search', search);
             if (selectedCategory !== 'all') params.set('category', selectedCategory);
-            if (sortBy !== 'createdAt') params.set('sortBy', sortBy);
-            if (sortOrder !== 'desc') params.set('sortOrder', sortOrder);
+            params.set('sort', sortBy === 'likesCount' ? 'popular' : 'latest');
             params.set('page', page);
-            params.set('limit', perPage);
+            params.set('perPage', perPage);
 
-            const res = await fetch(`${API_BASE}api/recipes?${params.toString()}`);
+            const res = await fetch(`${BASE_URL}/api/recipes?${params.toString()}`);
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(`Server error ${res.status}: ${text}`);
+            }
             const data = await res.json();
             setRecipes(data.recipes || []);
-            setTotal(data.pagination?.total || 0);
+            setTotal(data.total || 0);
         } catch (err) {
             console.error(err);
             toast.error('Failed to fetch recipes');
@@ -350,167 +322,146 @@ export default function RecipesClient({ initialData, initialParams = {} }) {
         }
     }, [search, selectedCategory, sortBy, sortOrder, page]);
 
-    // Fetch on filter change
-    useEffect(() => {
-        fetchRecipes();
-    }, [fetchRecipes]);
+    useEffect(() => { fetchRecipes(); }, [fetchRecipes]);
 
-    // Fetch user's favorites on mount
+    // ── fetch favorites ──────────────────────────────────────
     useEffect(() => {
-        if (user) {
-            const fetchFavorites = async () => {
-                try {
-                    const token = session?.session?.token;
-                    const res = await fetch(`${API_BASE}api/favorites`, {
-                        headers: { Authorization: `Bearer ${token}` },
-                    });
+        if (status !== 'authenticated' || !userEmail) return;
+        const fetchFavorites = async () => {
+            try {
+                const res = await fetch(`${BASE_URL}/api/favorites`, {
+                    headers: { 'user-email': userEmail },
+                });
+                if (res.ok) {
                     const data = await res.json();
-                    if (Array.isArray(data)) {
-                        setFavoritedIds(data.map((f) => f.recipeId));
+                    if (Array.isArray(data)) setFavoritedIds(data.map((f) => f.recipeId));
+                } else if (res.status === 401) {
+                    // Try syncing once more and retry
+                    localStorage.removeItem(SYNCED_KEY);
+                    const synced = await syncUser(userEmail, user?.name, user?.image);
+                    if (synced) {
+                        const retry = await fetch(`${BASE_URL}/api/favorites`, {
+                            headers: { 'user-email': userEmail },
+                        });
+                        if (retry.ok) {
+                            const data = await retry.json();
+                            if (Array.isArray(data)) setFavoritedIds(data.map((f) => f.recipeId));
+                        }
                     }
-                } catch (err) {
-                    console.error('Failed to fetch favorites', err);
                 }
-            };
-            fetchFavorites();
-        }
-    }, [user, session]);
-
-    // Update URL with filters (optional)
-    const updateUrl = (params) => {
-        const query = new URLSearchParams();
-        Object.entries(params).forEach(([key, value]) => {
-            if (value && value !== 'all' && value !== 'createdAt' && value !== 'desc') {
-                query.set(key, value);
+            } catch (err) {
+                console.error('Favorites fetch error:', err);
             }
-        });
-        router.push(`/recipes?${query.toString()}`, { scroll: false });
-    };
+        };
+        fetchFavorites();
+    }, [status, userEmail, user?.name, user?.image]);
 
-    // Handlers
-    const handleSearch = (e) => {
-        e.preventDefault();
-        setPage(1);
-        updateUrl({ search, category: selectedCategory, sortBy, sortOrder, page: 1 });
-    };
-
-    const handleCategoryChange = (cat) => {
-        setSelectedCategory(cat);
-        setPage(1);
-        updateUrl({ search, category: cat, sortBy, sortOrder, page: 1 });
-    };
-
-    const handleSortChange = (e) => {
-        const value = e.target.value;
-        const [newSortBy, newSortOrder] = value.split('_');
-        setSortBy(newSortBy);
-        setSortOrder(newSortOrder);
-        setPage(1);
-        updateUrl({
-            search,
-            category: selectedCategory,
-            sortBy: newSortBy,
-            sortOrder: newSortOrder,
-            page: 1,
-        });
-    };
-
-    const handlePageChange = (newPage) => {
-        setPage(newPage);
-        updateUrl({
-            search,
-            category: selectedCategory,
-            sortBy,
-            sortOrder,
-            page: newPage,
-        });
-    };
-
-    // Like / Unlike
+    // ── handlers ──────────────────────────────────────────────
     const handleLike = async (recipeId) => {
-        if (!user) {
+        if (!userEmail) {
             toast.error('Please sign in to like');
             return;
         }
         try {
-            const token = session?.session?.token;
-            const res = await fetch(`${API_BASE}api/recipes/${recipeId}/like`, {
+            let res = await fetch(`${BASE_URL}/api/recipes/${recipeId}/like`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    'user-email': userEmail,
                 },
             });
-            const data = await res.json();
-            if (data.success) {
-                // Optimistically update UI
-                setRecipes((prev) =>
-                    prev.map((r) =>
-                        r._id === recipeId
-                            ? {
-                                ...r,
-                                likesCount: data.likesCount,
-                                likedBy: data.liked
-                                    ? [...(r.likedBy || []), user.id]
-                                    : (r.likedBy || []).filter((id) => id !== user.id),
-                            }
-                            : r
-                    )
-                );
+            if (res.status === 401) {
+                localStorage.removeItem(SYNCED_KEY);
+                const synced = await syncUser(userEmail, user?.name, user?.image);
+                if (synced) {
+                    res = await fetch(`${BASE_URL}/api/recipes/${recipeId}/like`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'user-email': userEmail,
+                        },
+                    });
+                }
+            }
+            if (res.ok) {
+                const data = await res.json();
+                setRecipes((prev) => prev.map((r) =>
+                    r._id === recipeId
+                        ? { ...r, likesCount: data.likesCount, likedBy: data.liked ? [...(r.likedBy || []), userEmail] : (r.likedBy || []).filter(e => e !== userEmail) }
+                        : r
+                ));
                 toast.success(data.liked ? 'Liked!' : 'Unliked');
             } else {
+                const data = await res.json();
                 toast.error(data.message || 'Failed to like');
             }
         } catch (err) {
-            console.error(err);
+            console.error('Like error:', err);
             toast.error('Something went wrong');
         }
     };
 
-    // Favorite / Unfavorite
     const handleFavorite = async (recipeId, isFavorited) => {
-        if (!user) {
+        if (!userEmail) {
             toast.error('Please sign in to favorite');
             return;
         }
         try {
-            const token = session?.session?.token;
-            const url = `${API_BASE}api/favorites${isFavorited ? `/${recipeId}` : ''}`;
+            const url = `${BASE_URL}/api/favorites${isFavorited ? `/${recipeId}` : ''}`;
             const method = isFavorited ? 'DELETE' : 'POST';
-            const body = isFavorited ? undefined : JSON.stringify({ recipeId });
-
-            const res = await fetch(url, {
+            let res = await fetch(url, {
                 method,
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    'user-email': userEmail,
                 },
-                body,
+                body: isFavorited ? undefined : JSON.stringify({ recipeId }),
             });
-            const data = await res.json();
-            if (data.success) {
-                // Update local favorites list
-                if (isFavorited) {
-                    setFavoritedIds((prev) => prev.filter((id) => id !== recipeId));
-                } else {
-                    setFavoritedIds((prev) => [...prev, recipeId]);
+            if (res.status === 401) {
+                localStorage.removeItem(SYNCED_KEY);
+                const synced = await syncUser(userEmail, user?.name, user?.image);
+                if (synced) {
+                    res = await fetch(url, {
+                        method,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'user-email': userEmail,
+                        },
+                        body: isFavorited ? undefined : JSON.stringify({ recipeId }),
+                    });
                 }
-                toast.success(isFavorited ? 'Removed from favorites' : 'Added to favorites');
+            }
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success) {
+                    setFavoritedIds((prev) => isFavorited ? prev.filter(id => id !== recipeId) : [...prev, recipeId]);
+                    toast.success(isFavorited ? 'Removed from favorites' : 'Added to favorites');
+                } else {
+                    toast.error(data.message || 'Failed');
+                }
             } else {
-                toast.error(data.message || 'Failed to update favorites');
+                const data = await res.json();
+                toast.error(data.message || 'Failed');
             }
         } catch (err) {
-            console.error(err);
+            console.error('Favorite error:', err);
             toast.error('Something went wrong');
         }
     };
 
+    const handleSearch = (e) => { e.preventDefault(); setPage(1); fetchRecipes(); };
+    const handleCategoryChange = (cat) => { setSelectedCategory(cat); setPage(1); };
+    const handleSortChange = (e) => {
+        const [newSortBy, newSortOrder] = e.target.value.split('_');
+        setSortBy(newSortBy);
+        setSortOrder(newSortOrder);
+        setPage(1);
+    };
     const totalPages = Math.ceil(total / perPage);
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-[#0f1117] pt-24 pb-16 px-4 sm:px-6 lg:px-8">
             <div className="max-w-6xl mx-auto space-y-8">
-                {/* Header */}
                 <div className="text-center">
                     <h1 className="text-4xl font-bold bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">
                         Explore Recipes
@@ -520,12 +471,9 @@ export default function RecipesClient({ initialData, initialParams = {} }) {
                     </p>
                 </div>
 
-                {/* Search & Filters */}
+                {/* Search & Sort */}
                 <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-white dark:bg-[#1a1d24] p-4 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
-                    <form
-                        onSubmit={handleSearch}
-                        className="relative w-full md:max-w-sm"
-                    >
+                    <form onSubmit={handleSearch} className="relative w-full md:max-w-sm">
                         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                         <input
                             type="text"
@@ -535,19 +483,15 @@ export default function RecipesClient({ initialData, initialParams = {} }) {
                             className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:border-orange-500 transition-all"
                         />
                     </form>
-
-                    <div className="flex flex-wrap gap-2 items-center">
-                        <select
-                            value={`${sortBy}_${sortOrder}`}
-                            onChange={handleSortChange}
-                            className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500/40"
-                        >
-                            <option value="createdAt_desc">Newest</option>
-                            <option value="createdAt_asc">Oldest</option>
-                            <option value="likesCount_desc">Most Liked</option>
-                            <option value="likesCount_asc">Least Liked</option>
-                        </select>
-                    </div>
+                    <select
+                        value={`${sortBy}_${sortOrder}`}
+                        onChange={handleSortChange}
+                        className="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+                    >
+                        <option value="createdAt_desc">Newest</option>
+                        <option value="createdAt_asc">Oldest</option>
+                        <option value="likesCount_desc">Most Liked</option>
+                    </select>
                 </div>
 
                 {/* Category pills */}
@@ -557,7 +501,7 @@ export default function RecipesClient({ initialData, initialParams = {} }) {
                             key={cat}
                             onClick={() => handleCategoryChange(cat)}
                             className={`px-4 py-2 rounded-xl text-xs font-semibold capitalize transition-all ${selectedCategory === cat
-                                    ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md shadow-orange-500/20'
+                                    ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md'
                                     : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
                                 }`}
                         >
@@ -566,25 +510,22 @@ export default function RecipesClient({ initialData, initialParams = {} }) {
                     ))}
                 </div>
 
-                {/* Results count */}
-                <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
-                    <span>
-                        {isLoading ? (
-                            'Loading...'
-                        ) : (
-                            <>
-                                Showing{' '}
-                                <span className="font-semibold text-gray-900 dark:text-gray-100">
-                                    {recipes.length}
-                                </span>{' '}
-                                of{' '}
-                                <span className="font-semibold text-gray-900 dark:text-gray-100">
-                                    {total}
-                                </span>{' '}
-                                recipes
-                            </>
-                        )}
-                    </span>
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                    {isLoading ? (
+                        'Loading...'
+                    ) : (
+                        <>
+                            Showing{' '}
+                            <span className="font-semibold text-gray-900 dark:text-gray-100">
+                                {recipes.length}
+                            </span>{' '}
+                            of{' '}
+                            <span className="font-semibold text-gray-900 dark:text-gray-100">
+                                {total}
+                            </span>{' '}
+                            recipes
+                        </>
+                    )}
                 </div>
 
                 {/* Grid */}
@@ -599,7 +540,6 @@ export default function RecipesClient({ initialData, initialParams = {} }) {
                                 <div className="p-5 space-y-3">
                                     <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
                                     <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2" />
-                                    <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3" />
                                 </div>
                             </div>
                         ))}
@@ -613,31 +553,28 @@ export default function RecipesClient({ initialData, initialParams = {} }) {
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {recipes.map((recipe, index) => {
-                            const config =
-                                CATEGORY_CONFIG[recipe.category?.toLowerCase()] ||
-                                DEFAULT_CONFIG;
+                            const config = CATEGORY_CONFIG[recipe.category?.toLowerCase()] || DEFAULT_CONFIG;
                             const ModeIcon = config.icon;
                             const isFavorited = favoritedIds.includes(recipe._id);
+                            const isLikedByUser = recipe.likedBy?.includes(userEmail);
 
                             return (
                                 <motion.div
                                     key={recipe._id}
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: index * 0.05 }}
-                                    className="bg-white dark:bg-[#1a1d24] rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-all group flex flex-col h-full"
+                                    transition={{ duration: 0.4, delay: index * 0.05 }}
+                                    whileHover={{ y: -4 }}
+                                    className="group bg-white dark:bg-[#1a1d24] rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-[0_12px_40px_rgba(249,115,22,0.15)] transition-all duration-500 flex flex-col h-full"
                                 >
-                                    {/* Image */}
                                     <div className="relative h-48 w-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
                                         <Image
                                             src={recipe.recipeImage || '/recipe-placeholder.jpg'}
                                             alt={recipe.recipeName}
                                             fill
-                                            className="object-cover group-hover:scale-105 transition-transform duration-500"
+                                            className="object-cover group-hover:scale-105 transition-transform duration-700"
                                         />
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-
-                                        {/* Badges */}
                                         <div
                                             className={`absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full ${config.bg} border border-white/20 backdrop-blur-md`}
                                         >
@@ -648,28 +585,21 @@ export default function RecipesClient({ initialData, initialParams = {} }) {
                                                 {recipe.category || 'General'}
                                             </span>
                                         </div>
-
                                         {recipe.isFeatured && (
-                                            <div className="absolute top-3 left-3 px-2 py-1 rounded-full bg-yellow-500 text-white text-xs font-bold shadow-md">
+                                            <div className="absolute top-3 left-3 px-2 py-1 rounded-full bg-yellow-500 text-white text-xs font-bold">
                                                 Featured
                                             </div>
                                         )}
-
                                         {recipe.isPremium && (
-                                            <div className="absolute bottom-3 right-3 flex items-center gap-1 px-2 py-1 rounded-full bg-purple-600 text-white text-xs font-bold shadow-md">
-                                                <Crown className="w-3 h-3" />
-                                                Premium
+                                            <div className="absolute bottom-3 right-3 flex items-center gap-1 px-2 py-1 rounded-full bg-purple-600 text-white text-xs font-bold">
+                                                <Crown className="w-3 h-3" /> Premium
                                             </div>
                                         )}
                                     </div>
 
-                                    {/* Content */}
                                     <div className="p-5 flex-1 flex flex-col justify-between space-y-3">
                                         <div>
-                                            <Link
-                                                href={`/recipes/${recipe._id}`}
-                                                className="block"
-                                            >
+                                            <Link href={`/recipes/${recipe._id}`}>
                                                 <h3 className="font-bold text-lg text-gray-900 dark:text-gray-100 line-clamp-1 hover:text-orange-500 transition-colors">
                                                     {recipe.recipeName}
                                                 </h3>
@@ -677,7 +607,6 @@ export default function RecipesClient({ initialData, initialParams = {} }) {
                                             <p className="text-xs text-gray-400 mt-1">
                                                 By {recipe.authorName || 'Anonymous'}
                                             </p>
-
                                             <div className="flex flex-wrap gap-2 mt-2 text-xs">
                                                 <span className="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
                                                     {recipe.cuisineType || 'Various'}
@@ -686,42 +615,36 @@ export default function RecipesClient({ initialData, initialParams = {} }) {
                                                     {recipe.difficultyLevel || 'Medium'}
                                                 </span>
                                                 <span className="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 flex items-center gap-1">
-                                                    <Clock className="w-3 h-3" />{' '}
-                                                    {recipe.preparationTime || 30} min
+                                                    <Clock className="w-3 h-3" /> {recipe.preparationTime || 30} min
                                                 </span>
                                             </div>
                                         </div>
 
-                                        {/* Actions */}
                                         <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800">
                                             <div className="flex items-center gap-1 text-sm text-gray-500">
                                                 <Heart
-                                                    className={`w-4 h-4 ${recipe.likesCount > 0
-                                                            ? 'fill-red-500 text-red-500'
-                                                            : ''
+                                                    className={`w-4 h-4 ${isLikedByUser ? 'fill-red-500 text-red-500' : ''
                                                         }`}
                                                 />
                                                 <span>{recipe.likesCount || 0}</span>
                                             </div>
-
                                             <div className="flex items-center gap-1">
                                                 <button
                                                     onClick={() => handleLike(recipe._id)}
                                                     className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                                                     title="Like"
                                                 >
-                                                    <Heart className="w-4 h-4 text-gray-500 hover:text-red-500" />
+                                                    <Heart
+                                                        className={`w-4 h-4 ${isLikedByUser
+                                                                ? 'fill-red-500 text-red-500'
+                                                                : 'text-gray-500 hover:text-red-500'
+                                                            }`}
+                                                    />
                                                 </button>
                                                 <button
-                                                    onClick={() =>
-                                                        handleFavorite(recipe._id, isFavorited)
-                                                    }
+                                                    onClick={() => handleFavorite(recipe._id, isFavorited)}
                                                     className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                                                    title={
-                                                        isFavorited
-                                                            ? 'Remove from favorites'
-                                                            : 'Add to favorites'
-                                                    }
+                                                    title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
                                                 >
                                                     <Star
                                                         className={`w-4 h-4 ${isFavorited
@@ -765,28 +688,26 @@ export default function RecipesClient({ initialData, initialParams = {} }) {
                 {totalPages > 1 && (
                     <div className="flex items-center justify-center gap-2 mt-8">
                         <button
-                            onClick={() => handlePageChange(page - 1)}
+                            onClick={() => setPage((p) => Math.max(1, p - 1))}
                             disabled={page === 1}
                             className="px-4 py-2 rounded-xl bg-white dark:bg-[#1a1d24] border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-600 dark:text-gray-400 hover:border-orange-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                         >
                             Previous
                         </button>
-
                         {[...Array(totalPages)].map((_, i) => (
                             <button
                                 key={i + 1}
-                                onClick={() => handlePageChange(i + 1)}
+                                onClick={() => setPage(i + 1)}
                                 className={`w-10 h-10 rounded-xl text-sm font-semibold transition-all ${page === i + 1
-                                        ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md shadow-orange-500/25'
+                                        ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md'
                                         : 'bg-white dark:bg-[#1a1d24] border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-orange-300'
                                     }`}
                             >
                                 {i + 1}
                             </button>
                         ))}
-
                         <button
-                            onClick={() => handlePageChange(page + 1)}
+                            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                             disabled={page === totalPages}
                             className="px-4 py-2 rounded-xl bg-white dark:bg-[#1a1d24] border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-600 dark:text-gray-400 hover:border-orange-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                         >
@@ -796,19 +717,12 @@ export default function RecipesClient({ initialData, initialParams = {} }) {
                 )}
             </div>
 
-            {/* Modals */}
             <AnimatePresence>
                 {purchaseRecipe && (
-                    <PurchaseModal
-                        recipe={purchaseRecipe}
-                        onClose={() => setPurchaseRecipe(null)}
-                    />
+                    <PurchaseModal recipe={purchaseRecipe} onClose={() => setPurchaseRecipe(null)} />
                 )}
                 {reportRecipeId && (
-                    <ReportModal
-                        recipeId={reportRecipeId}
-                        onClose={() => setReportRecipeId(null)}
-                    />
+                    <ReportModal recipeId={reportRecipeId} onClose={() => setReportRecipeId(null)} />
                 )}
             </AnimatePresence>
         </div>
