@@ -1,34 +1,13 @@
-"use client";
+import { headers } from 'next/headers';
+import { auth } from '@/lib/auth';
+import PurchasedClient from './PurchasedClient';
 
-import { useEffect, useState } from "react";
+export default async function PurchasedPage() {
+  const session = await auth.api.getSession({ headers: await headers() });
 
-export default function Purchased() {
-  const [items, setItems] = useState([]);
+  if (!session?.user) {
+    return <div className="p-6 text-center text-gray-500 dark:text-gray-400">Please log in.</div>;
+  }
 
-  useEffect(() => {
-    fetch("/api/user/purchased")
-      .then((res) => res.json())
-      .then((data) => setItems(data));
-  }, []);
-
-  return (
-    <div>
-      <h1 className="text-2xl font-bold mb-4">
-        Purchased Recipes
-      </h1>
-
-      <div className="grid gap-4">
-        {items.map((i) => (
-          <div
-            key={i._id}
-            className="p-4 bg-white dark:bg-zinc-900 rounded-xl"
-          >
-            <p className="font-bold">{i.recipeName}</p>
-            <p>Transaction: {i.transactionId}</p>
-            <p>Amount: ${i.amount}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  return <PurchasedClient user={session.user} />;
 }
