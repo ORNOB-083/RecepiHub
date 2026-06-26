@@ -57,34 +57,30 @@ async function getSessionEmail() {
     return session?.data?.user?.email || null;
 }
 
-// ─── PURCHASE MODAL ────────────────────────────────────────────
+// ─── PURCHASE MODAL (UPDATED) ──────────────────────────────
 function PurchaseModal({ recipe, onClose }) {
     const [isLoading, setIsLoading] = useState(false);
 
     const handlePurchase = async () => {
         setIsLoading(true);
         try {
-            const session = await authClient.getSession();
-            const token = session?.data?.session?.token;
-            if (!token) {
-                toast.error('Please sign in to purchase');
-                return;
-            }
-
-            const res = await fetch(`${BASE_URL}/api/payments/recipe-checkout`, {
+            const res = await fetch(`/api/payments/checkout-session`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
                 },
-                body: JSON.stringify({ recipeId: recipe._id }),
+                body: JSON.stringify({
+                    type: 'recipe',
+                    recipeId: recipe._id,
+                    amount: recipe.price || 4.99,
+                }),
             });
 
             const data = await res.json();
             if (data.url) {
                 window.location.href = data.url;
             } else {
-                toast.error(data.message || 'Payment initiation failed');
+                toast.error(data.error || 'Payment initiation failed');
             }
         } catch (err) {
             console.error('Purchase error:', err);
@@ -127,17 +123,13 @@ function PurchaseModal({ recipe, onClose }) {
                         <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
                             <span>Recipe Price</span>
                             <span className="font-semibold text-gray-900 dark:text-gray-100">
-                                ${(recipe.price || 4.99).toFixed(2)}
+                                ৳{(recipe.price || 4.99).toFixed(2)}
                             </span>
-                        </div>
-                        <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
-                            <span>Platform fee (3%)</span>
-                            <span>${((recipe.price || 4.99) * 0.03).toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between font-bold text-gray-900 dark:text-gray-100 pt-2 border-t border-gray-200 dark:border-gray-700">
                             <span>Total</span>
                             <span className="text-orange-600 dark:text-orange-400">
-                                ${((recipe.price || 4.99) * 1.03).toFixed(2)}
+                                ৳{(recipe.price || 4.99).toFixed(2)}
                             </span>
                         </div>
                     </div>
@@ -150,7 +142,7 @@ function PurchaseModal({ recipe, onClose }) {
                         {isLoading ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
-                            <>Purchase Now — ${((recipe.price || 4.99) * 1.03).toFixed(2)}</>
+                            <>Purchase Now — ৳{(recipe.price || 4.99).toFixed(2)}</>
                         )}
                     </button>
                     <p className="text-center text-xs text-gray-400 flex items-center justify-center gap-1">
@@ -502,8 +494,8 @@ export default function RecipesClient({ initialData, initialParams = {} }) {
                             key={cat}
                             onClick={() => handleCategoryChange(cat)}
                             className={`px-4 py-2 rounded-xl text-xs font-semibold capitalize transition-all ${selectedCategory === cat
-                                    ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md'
-                                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md'
+                                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
                                 }`}
                         >
                             {cat}
@@ -637,8 +629,8 @@ export default function RecipesClient({ initialData, initialParams = {} }) {
                                                 >
                                                     <Heart
                                                         className={`w-4 h-4 ${isLikedByUser
-                                                                ? 'fill-red-500 text-red-500'
-                                                                : 'text-gray-500 hover:text-red-500'
+                                                            ? 'fill-red-500 text-red-500'
+                                                            : 'text-gray-500 hover:text-red-500'
                                                             }`}
                                                     />
                                                 </button>
@@ -649,8 +641,8 @@ export default function RecipesClient({ initialData, initialParams = {} }) {
                                                 >
                                                     <Star
                                                         className={`w-4 h-4 ${isFavorited
-                                                                ? 'fill-yellow-400 text-yellow-400'
-                                                                : 'text-gray-500'
+                                                            ? 'fill-yellow-400 text-yellow-400'
+                                                            : 'text-gray-500'
                                                             }`}
                                                     />
                                                 </button>
@@ -700,8 +692,8 @@ export default function RecipesClient({ initialData, initialParams = {} }) {
                                 key={i + 1}
                                 onClick={() => setPage(i + 1)}
                                 className={`w-10 h-10 rounded-xl text-sm font-semibold transition-all ${page === i + 1
-                                        ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md'
-                                        : 'bg-white dark:bg-[#1a1d24] border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-orange-300'
+                                    ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md'
+                                    : 'bg-white dark:bg-[#1a1d24] border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-orange-300'
                                     }`}
                             >
                                 {i + 1}
