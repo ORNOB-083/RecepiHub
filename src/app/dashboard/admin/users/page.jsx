@@ -1,48 +1,13 @@
-"use client";
+import { headers } from 'next/headers';
+import { auth } from '@/lib/auth';
+import UsersClient from './UsersClient';
 
-import { useEffect, useState } from "react";
+export default async function AdminUsersPage() {
+  const session = await auth.api.getSession({ headers: await headers() });
 
-export default function UsersPage() {
-  const [users, setUsers] = useState([]);
+  if (!session?.user || session.user.role !== 'admin') {
+    return <div className="p-6 text-center text-red-500">Access denied. Admins only.</div>;
+  }
 
-  useEffect(() => {
-    fetch("/api/admin/users")
-      .then((res) => res.json())
-      .then((data) => setUsers(data));
-  }, []);
-
-  const toggleBlock = async (id) => {
-    await fetch(`/api/admin/users/${id}`, {
-      method: "PATCH",
-    });
-
-    location.reload();
-  };
-
-  return (
-    <div>
-      <h1 className="text-2xl font-bold mb-4">Manage Users</h1>
-
-      <div className="space-y-3">
-        {users.map((u) => (
-          <div
-            key={u._id}
-            className="p-4 bg-white dark:bg-zinc-900 rounded-xl flex justify-between"
-          >
-            <div>
-              <p>{u.name}</p>
-              <p className="text-sm text-gray-500">{u.email}</p>
-            </div>
-
-            <button
-              onClick={() => toggleBlock(u._id)}
-              className="px-3 py-1 bg-red-500 text-white rounded"
-            >
-              {u.isBlocked ? "Unblock" : "Block"}
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  return <UsersClient user={session.user} />;
 }
