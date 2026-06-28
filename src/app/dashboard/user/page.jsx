@@ -1,44 +1,24 @@
-"use client";
+import { headers } from 'next/headers';
+import { auth } from '@/lib/auth';
+import { redirect } from 'next/navigation';
+import UserOverviewClient from './UserOverviewClient';
 
-import { useEffect, useState } from "react";
+const BASE_URL = (process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:8000').replace(/\/$/, '');
 
-export default function DashboardHome() {
-  const [data, setData] = useState({
-    recipes: 0,
-    favorites: 0,
-    likes: 0,
-    isPremium: false,
-  });
+export default async function UserDashboardPage() {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) redirect('/auth/signin');
 
-  useEffect(() => {
-    fetch("/api/user/dashboard")
-      .then((res) => res.json())
-      .then((res) => setData(res));
-  }, []);
+  let backendUser = null;
+  try {
+    const res = await fetch(`${BASE_URL}/api/users/me`, {
+      headers: { 'user-email': session.user.email },
+      cache: 'no-store',
+    });
+    if (res.ok) backendUser = await res.json();
+  } catch (err) {
+    console.error('Failed to fetch backend user:', err);
+  }
 
-  return (
-    <div>
-      <h1 className="text-3xl font-bold mb-6">Overview</h1>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-
-        <div className="p-5 bg-white dark:bg-zinc-900 rounded-xl">
-          My Recipes: {data.recipes}
-        </div>
-
-        <div className="p-5 bg-white dark:bg-zinc-900 rounded-xl">
-          Favorites: {data.favorites}
-        </div>
-
-        <div className="p-5 bg-white dark:bg-zinc-900 rounded-xl">
-          Likes: {data.likes}
-        </div>
-
-        <div className="p-5 bg-white dark:bg-zinc-900 rounded-xl">
-          {data.isPremium ? "⭐ Premium User" : "Free User"}
-        </div>
-
-      </div>
-    </div>
-  );
+  return <UserOverviewClient user={backendUser || session.user} />;
 }
