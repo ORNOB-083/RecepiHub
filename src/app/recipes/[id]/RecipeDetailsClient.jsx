@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Clock, User, Heart, Flag, ShoppingCart,
@@ -25,15 +26,10 @@ async function syncUser(email, name, image) {
         });
         if (res.ok) {
             localStorage.setItem(SYNCED_KEY, 'true');
-            console.log('✅ User synced to backend');
             return true;
-        } else {
-            const text = await res.text();
-            console.error('Sync failed:', text);
-            return false;
         }
-    } catch (err) {
-        console.error('Sync error:', err);
+        return false;
+    } catch {
         return false;
     }
 }
@@ -44,37 +40,37 @@ async function getSessionEmail() {
     return session?.data?.user?.email || null;
 }
 
-// ─── PURCHASE MODAL ────────────────────────────────────────────
+// ─── PURCHASE MODAL ──────────────────────────────────────────
 function PurchaseModal({ recipe, onClose }) {
     const [isLoading, setIsLoading] = useState(false);
 
     const handlePurchase = async () => {
         setIsLoading(true);
         try {
-            const session = await authClient.getSession();
-            const token = session?.data?.session?.token;
-            if (!token) {
+            const userEmail = await getSessionEmail();
+            if (!userEmail) {
                 toast.error('Please sign in to purchase');
                 return;
             }
-
-            const res = await fetch(`${BASE_URL}/api/payments/recipe-checkout`, {
+            const res = await fetch('/api/payments/checkout-session', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    'user-email': userEmail,
                 },
-                body: JSON.stringify({ recipeId: recipe._id }),
+                body: JSON.stringify({
+                    type: 'recipe',
+                    recipeId: recipe._id,
+                    amount: recipe.price || 4.99,
+                }),
             });
-
             const data = await res.json();
             if (data.url) {
                 window.location.href = data.url;
             } else {
-                toast.error(data.message || 'Payment initiation failed');
+                toast.error(data.error || 'Payment initiation failed');
             }
-        } catch (err) {
-            console.error('Purchase error:', err);
+        } catch {
             toast.error('Something went wrong');
         } finally {
             setIsLoading(false);
@@ -99,36 +95,27 @@ function PurchaseModal({ recipe, onClose }) {
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="relative h-32 bg-gradient-to-r from-orange-500 to-amber-600 p-5 flex flex-col justify-end">
-                    <button
-                        onClick={onClose}
-                        className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors"
-                    >
+                    <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors">
                         <X className="w-4 h-4" />
                     </button>
                     <h3 className="text-white font-bold text-lg">{recipe.recipeName}</h3>
                     <p className="text-white/80 text-xs">Premium Recipe</p>
                 </div>
-
                 <div className="p-5 space-y-4">
                     <div className="space-y-2 p-4 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700">
                         <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
                             <span>Recipe Price</span>
                             <span className="font-semibold text-gray-900 dark:text-gray-100">
-                                ${(recipe.price || 4.99).toFixed(2)}
+                                ৳{(recipe.price || 4.99).toFixed(2)}
                             </span>
-                        </div>
-                        <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
-                            <span>Platform fee (3%)</span>
-                            <span>${((recipe.price || 4.99) * 0.03).toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between font-bold text-gray-900 dark:text-gray-100 pt-2 border-t border-gray-200 dark:border-gray-700">
                             <span>Total</span>
                             <span className="text-orange-600 dark:text-orange-400">
-                                ${((recipe.price || 4.99) * 1.03).toFixed(2)}
+                                ৳{(recipe.price || 4.99).toFixed(2)}
                             </span>
                         </div>
                     </div>
-
                     <button
                         onClick={handlePurchase}
                         disabled={isLoading}
@@ -137,7 +124,7 @@ function PurchaseModal({ recipe, onClose }) {
                         {isLoading ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
-                            <>Purchase Now — ${((recipe.price || 4.99) * 1.03).toFixed(2)}</>
+                            <>Purchase Now — ৳{(recipe.price || 4.99).toFixed(2)}</>
                         )}
                     </button>
                     <p className="text-center text-xs text-gray-400 flex items-center justify-center gap-1">
@@ -149,7 +136,7 @@ function PurchaseModal({ recipe, onClose }) {
     );
 }
 
-// ─── REPORT MODAL ──────────────────────────────────────────────
+// ─── REPORT MODAL ─────────────────────────────────────────────
 function ReportModal({ recipeId, onClose }) {
     const [reason, setReason] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -167,7 +154,6 @@ function ReportModal({ recipeId, onClose }) {
                 toast.error('Please sign in to report');
                 return;
             }
-
             const res = await fetch(`${BASE_URL}/api/reports`, {
                 method: 'POST',
                 headers: {
@@ -176,7 +162,6 @@ function ReportModal({ recipeId, onClose }) {
                 },
                 body: JSON.stringify({ recipeId, reason }),
             });
-
             if (res.ok) {
                 toast.success('Report submitted successfully');
                 onClose();
@@ -184,9 +169,8 @@ function ReportModal({ recipeId, onClose }) {
                 const data = await res.json();
                 toast.error(data.message || 'Failed to submit report');
             }
-        } catch (err) {
-            console.error('Report error:', err);
-            toast.error(err.message || 'Something went wrong');
+        } catch {
+            toast.error('Something went wrong');
         } finally {
             setIsLoading(false);
         }
@@ -211,10 +195,7 @@ function ReportModal({ recipeId, onClose }) {
                 <div className="p-5 space-y-4">
                     <div className="flex items-center justify-between">
                         <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Report Recipe</h3>
-                        <button
-                            onClick={onClose}
-                            className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                        >
+                        <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                             <X className="w-5 h-5 text-gray-500" />
                         </button>
                     </div>
@@ -256,6 +237,9 @@ export default function RecipeDetailsClient({ recipe }) {
     const user = session?.user;
     const userEmail = user?.email;
 
+    const searchParams = useSearchParams();
+    const purchasedFlag = searchParams.get('purchased');
+
     const [likesCount, setLikesCount] = useState(recipe.likesCount || 0);
     const [isLiked, setIsLiked] = useState(recipe.likedBy?.includes(userEmail) || false);
     const [isFavorited, setIsFavorited] = useState(false);
@@ -263,6 +247,9 @@ export default function RecipeDetailsClient({ recipe }) {
     const [showPurchaseModal, setShowPurchaseModal] = useState(false);
     const [showReportModal, setShowReportModal] = useState(false);
     const [isLoadingAction, setIsLoadingAction] = useState(false);
+    const [isPurchasedLoading, setIsPurchasedLoading] = useState(true);
+    const [isFavoritedLoading, setIsFavoritedLoading] = useState(true);
+    const [hasRefreshed, setHasRefreshed] = useState(false);
 
     // ── Sync user ──────────────────────────────────────────────
     useEffect(() => {
@@ -274,59 +261,87 @@ export default function RecipeDetailsClient({ recipe }) {
         }
     }, [status, userEmail, user?.name, user?.image]);
 
-    // ── Fetch user data ────────────────────────────────────────
-    useEffect(() => {
-        if (status !== 'authenticated' || !userEmail) return;
-
-        const fetchData = async () => {
-            try {
-                // Fetch favorites
-                let favRes = await fetch(`${BASE_URL}/api/favorites`, {
-                    headers: { 'user-email': userEmail },
-                });
-                if (favRes.status === 401) {
-                    localStorage.removeItem(SYNCED_KEY);
-                    const synced = await syncUser(userEmail, user?.name, user?.image);
-                    if (synced) favRes = await fetch(`${BASE_URL}/api/favorites`, {
-                        headers: { 'user-email': userEmail },
-                    });
+    // ── Fetch purchase status ──────────────────────────────────
+    const fetchPurchaseStatus = async (force = false) => {
+        if (!userEmail || status !== 'authenticated') {
+            setIsPurchasedLoading(false);
+            return;
+        }
+        setIsPurchasedLoading(true);
+        try {
+            const url = `${BASE_URL}/api/purchases${force ? `?_t=${Date.now()}` : ''}`;
+            const res = await fetch(url, {
+                headers: { 'user-email': userEmail },
+                cache: 'no-store',
+            });
+            if (res.ok) {
+                const purData = await res.json();
+                const purchased = purData.some((p) => p.recipeId === recipe._id);
+                setIsPurchased(purchased);
+                if (purchased && purchasedFlag === 'true') {
+                    const newUrl = window.location.pathname;
+                    window.history.replaceState({}, '', newUrl);
                 }
-                if (favRes.ok) {
-                    const favData = await favRes.json();
-                    if (Array.isArray(favData)) {
-                        setIsFavorited(favData.some((f) => f.recipeId === recipe._id));
-                    }
-                }
-
-                // Fetch purchases
-                let purRes = await fetch(`${BASE_URL}/api/purchases`, {
-                    headers: { 'user-email': userEmail },
-                });
-                if (purRes.status === 401) {
-                    localStorage.removeItem(SYNCED_KEY);
-                    const synced = await syncUser(userEmail, user?.name, user?.image);
-                    if (synced) purRes = await fetch(`${BASE_URL}/api/purchases`, {
-                        headers: { 'user-email': userEmail },
-                    });
-                }
-                if (purRes.ok) {
-                    const purData = await purRes.json();
-                    if (Array.isArray(purData)) {
-                        setIsPurchased(purData.some((p) => p.recipeId === recipe._id));
-                    }
-                }
-
-                // Check like status
-                if (recipe.likedBy?.includes(userEmail)) {
-                    setIsLiked(true);
-                }
-            } catch (err) {
-                console.error('Error fetching user data:', err);
             }
-        };
+        } catch (err) {
+            console.error('Error fetching purchases:', err);
+        } finally {
+            setIsPurchasedLoading(false);
+        }
+    };
 
-        fetchData();
-    }, [status, userEmail, recipe._id, recipe.likedBy, user?.name, user?.image]);
+    const fetchFavorites = async () => {
+        if (!userEmail || status !== 'authenticated') {
+            setIsFavoritedLoading(false);
+            return;
+        }
+        try {
+            let favRes = await fetch(`${BASE_URL}/api/favorites`, {
+                headers: { 'user-email': userEmail },
+            });
+            if (favRes.status === 401) {
+                localStorage.removeItem(SYNCED_KEY);
+                await syncUser(userEmail, user?.name, user?.image);
+                favRes = await fetch(`${BASE_URL}/api/favorites`, {
+                    headers: { 'user-email': userEmail },
+                });
+            }
+            if (favRes.ok) {
+                const favData = await favRes.json();
+                if (Array.isArray(favData)) {
+                    setIsFavorited(favData.some((f) => f.recipeId === recipe._id));
+                }
+            }
+        } catch (err) {
+            console.error('Error fetching favorites:', err);
+        } finally {
+            setIsFavoritedLoading(false);
+        }
+    };
+
+    // ── Initial fetch ──────────────────────────────────────────
+    useEffect(() => {
+        if (status === 'authenticated' && userEmail) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            fetchPurchaseStatus(false);
+            fetchFavorites();
+            if (recipe.likedBy?.includes(userEmail)) {
+                setIsLiked(true);
+            }
+        } else {
+            setIsPurchasedLoading(false);
+            setIsFavoritedLoading(false);
+        }
+    }, [status, userEmail, recipe._id, recipe.likedBy]);
+
+    // ── If `purchased` flag is present, force a fresh fetch ──
+    useEffect(() => {
+        if (purchasedFlag === 'true' && userEmail && !hasRefreshed) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            setHasRefreshed(true);
+            fetchPurchaseStatus(true);
+        }
+    }, [purchasedFlag, userEmail, hasRefreshed]);
 
     // ─── Handlers ──────────────────────────────────────────────
 
@@ -346,16 +361,14 @@ export default function RecipeDetailsClient({ recipe }) {
             });
             if (res.status === 401) {
                 localStorage.removeItem(SYNCED_KEY);
-                const synced = await syncUser(userEmail, user?.name, user?.image);
-                if (synced) {
-                    res = await fetch(`${BASE_URL}/api/recipes/${recipe._id}/like`, {
-                        method: 'PATCH',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'user-email': userEmail,
-                        },
-                    });
-                }
+                await syncUser(userEmail, user?.name, user?.image);
+                res = await fetch(`${BASE_URL}/api/recipes/${recipe._id}/like`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'user-email': userEmail,
+                    },
+                });
             }
             const data = await res.json();
             if (res.ok) {
@@ -365,9 +378,8 @@ export default function RecipeDetailsClient({ recipe }) {
             } else {
                 toast.error(data.message || 'Failed to like');
             }
-        } catch (err) {
-            console.error('Like error:', err);
-            toast.error(err.message || 'Something went wrong');
+        } catch {
+            toast.error('Something went wrong');
         } finally {
             setIsLoadingAction(false);
         }
@@ -392,17 +404,15 @@ export default function RecipeDetailsClient({ recipe }) {
             });
             if (res.status === 401) {
                 localStorage.removeItem(SYNCED_KEY);
-                const synced = await syncUser(userEmail, user?.name, user?.image);
-                if (synced) {
-                    res = await fetch(url, {
-                        method,
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'user-email': userEmail,
-                        },
-                        body: isFavorited ? undefined : JSON.stringify({ recipeId: recipe._id }),
-                    });
-                }
+                await syncUser(userEmail, user?.name, user?.image);
+                res = await fetch(url, {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'user-email': userEmail,
+                    },
+                    body: isFavorited ? undefined : JSON.stringify({ recipeId: recipe._id }),
+                });
             }
             const data = await res.json();
             if (data.success) {
@@ -411,9 +421,8 @@ export default function RecipeDetailsClient({ recipe }) {
             } else {
                 toast.error(data.message || 'Failed to update favorites');
             }
-        } catch (err) {
-            console.error('Favorite error:', err);
-            toast.error(err.message || 'Something went wrong');
+        } catch {
+            toast.error('Something went wrong');
         } finally {
             setIsLoadingAction(false);
         }
@@ -468,6 +477,11 @@ export default function RecipeDetailsClient({ recipe }) {
                             {recipe.isPremium && (
                                 <div className="absolute top-4 right-4 flex items-center gap-1 px-3 py-1 rounded-full bg-purple-600 text-white text-xs font-bold shadow-lg">
                                     <Crown className="w-3 h-3" /> Premium
+                                </div>
+                            )}
+                            {isPurchased && (
+                                <div className="absolute bottom-4 right-4 px-3 py-1 rounded-full bg-green-500 text-white text-xs font-bold shadow-lg flex items-center gap-1">
+                                    <CheckCircle className="w-3 h-3" /> Purchased
                                 </div>
                             )}
                         </div>
@@ -533,38 +547,30 @@ export default function RecipeDetailsClient({ recipe }) {
                                     onClick={handleLike}
                                     disabled={isLoadingAction}
                                     className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${isLiked
-                                            ? 'bg-red-500 text-white hover:bg-red-600'
-                                            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                        ? 'bg-red-500 text-white hover:bg-red-600'
+                                        : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                                         }`}
                                 >
-                                    {isLoadingAction ? (
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : isLiked ? (
-                                        'Liked'
-                                    ) : (
-                                        'Like'
-                                    )}
+                                    {isLoadingAction ? <Loader2 className="w-4 h-4 animate-spin" /> : isLiked ? 'Liked' : 'Like'}
                                 </button>
                             </div>
 
                             <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800">
                                 <span className="font-semibold text-gray-900 dark:text-gray-100">Favorite</span>
-                                <button
-                                    onClick={handleFavorite}
-                                    disabled={isLoadingAction}
-                                    className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${isFavorited
+                                {isFavoritedLoading ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                    <button
+                                        onClick={handleFavorite}
+                                        disabled={isLoadingAction}
+                                        className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${isFavorited
                                             ? 'bg-yellow-500 text-white hover:bg-yellow-600'
                                             : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                                        }`}
-                                >
-                                    {isLoadingAction ? (
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : isFavorited ? (
-                                        'Favorited'
-                                    ) : (
-                                        'Add to Favorites'
-                                    )}
-                                </button>
+                                            }`}
+                                    >
+                                        {isLoadingAction ? <Loader2 className="w-4 h-4 animate-spin" /> : isFavorited ? 'Favorited' : 'Add to Favorites'}
+                                    </button>
+                                )}
                             </div>
 
                             <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800">
@@ -582,10 +588,14 @@ export default function RecipeDetailsClient({ recipe }) {
                                     <div className="flex items-center justify-between mb-3">
                                         <span className="font-semibold text-gray-900 dark:text-gray-100">Price</span>
                                         <span className="text-xl font-bold text-orange-500">
-                                            ${(recipe.price || 4.99).toFixed(2)}
+                                            ৳{(recipe.price || 4.99).toFixed(2)}
                                         </span>
                                     </div>
-                                    {isPurchased ? (
+                                    {isPurchasedLoading ? (
+                                        <div className="flex items-center justify-center py-2">
+                                            <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                                        </div>
+                                    ) : isPurchased ? (
                                         <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
                                             <CheckCircle className="w-5 h-5" />
                                             <span className="font-semibold">Purchased</span>
@@ -612,12 +622,8 @@ export default function RecipeDetailsClient({ recipe }) {
             </div>
 
             <AnimatePresence>
-                {showPurchaseModal && (
-                    <PurchaseModal recipe={recipe} onClose={() => setShowPurchaseModal(false)} />
-                )}
-                {showReportModal && (
-                    <ReportModal recipeId={recipe._id} onClose={() => setShowReportModal(false)} />
-                )}
+                {showPurchaseModal && <PurchaseModal recipe={recipe} onClose={() => setShowPurchaseModal(false)} />}
+                {showReportModal && <ReportModal recipeId={recipe._id} onClose={() => setShowReportModal(false)} />}
             </AnimatePresence>
         </div>
     );
