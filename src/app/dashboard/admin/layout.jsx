@@ -1,11 +1,19 @@
-import Link from "next/link";
+import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
+import { auth } from '@/lib/auth';
 
-export default function DashboardLayout({ children }) {
-  return (
-    <div className="min-h-screen flex bg-gray-100 dark:bg-zinc-950">
-      <main className="flex-1 p-6">
-        {children}
-      </main>
-    </div>
-  );
+export default async function AdminLayout({ children }) {
+  const session = await auth.api.getSession({ headers: await headers() });
+
+  if (!session) {
+    redirect('/auth/login');
+  }
+
+  const role = session.user?.role || 'user';
+
+  if (role !== 'admin') {
+    redirect('/dashboard/user');
+  }
+
+  return children;
 }

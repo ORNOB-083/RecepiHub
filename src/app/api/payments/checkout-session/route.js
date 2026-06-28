@@ -22,12 +22,13 @@ export async function POST(request) {
         if (type === 'premium') {
             productName = 'RecipeHub Premium Membership';
             description = 'Unlimited recipe uploads and premium badge';
-            unitAmount = 999; // ৳9.99 in paisa (BDT)
+            // ✅ FIX: 999.00 BDT = 99900 paisa
+            unitAmount = 99900; // ৳999.00
             metadata = {
                 type: 'premium',
                 userEmail: session.user.email,
                 userId: session.user.id,
-                amount: (unitAmount / 100).toString(),
+                amount: '999.00',
             };
             successUrl = `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`;
             cancelUrl = `${origin}/dashboard/user`;
@@ -35,22 +36,33 @@ export async function POST(request) {
             if (!recipeId) {
                 return NextResponse.json({ error: 'Recipe ID is required' }, { status: 400 });
             }
-            // You could fetch recipe details from your backend to get the price
-            // For now, use the provided amount or default
-            const priceInBDT = amount || 499; // default ৳4.99
-            const recipe = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URL}/api/recipes/${recipeId}`, {
-                headers: { 'user-email': session.user.email },
-            }).then(res => res.json()).catch(() => null);
+            // Use provided amount (in BDT) or default 499 BDT
+            const priceInBDT = amount || 499;
+            // Convert to paisa (1 BDT = 100 paisa)
+            unitAmount = Math.round(priceInBDT * 100);
 
-            productName = recipe?.recipeName || 'Recipe Purchase';
+            // Fetch recipe name for better display
+            let recipeName = 'Recipe Purchase';
+            try {
+                const recipeRes = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URL}/api/recipes/${recipeId}`, {
+                    headers: { 'user-email': session.user.email },
+                });
+                if (recipeRes.ok) {
+                    const recipeData = await recipeRes.json();
+                    recipeName = recipeData.recipeName || recipeName;
+                }
+            } catch (e) {
+                // fallback
+            }
+
+            productName = recipeName;
             description = `Full recipe: ${productName}`;
-            unitAmount = Math.round(priceInBDT * 100); // convert to paisa
             metadata = {
                 type: 'recipe',
                 recipeId,
                 userEmail: session.user.email,
                 userId: session.user.id,
-                amount: (unitAmount / 100).toString(),
+                amount: priceInBDT.toString(),
             };
             successUrl = `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`;
             cancelUrl = `${origin}/recipes/${recipeId}`;

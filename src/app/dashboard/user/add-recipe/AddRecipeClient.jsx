@@ -26,7 +26,9 @@ async function uploadToImgbb(file) {
 export default function AddRecipeClient({ user: initialUser }) {
     const router = useRouter();
     const { data: session } = useSession();
-    const user = session?.user || initialUser;
+    // const user = session?.user || initialUser;
+    const sessionUser = session?.user;
+    const user = initialUser ? { ...sessionUser, ...initialUser } : sessionUser;
 
     const [recipeName, setRecipeName] = useState('');
     const [category, setCategory] = useState('');
@@ -181,8 +183,8 @@ export default function AddRecipeClient({ user: initialUser }) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.05 }}
                 className={`p-4 rounded-xl border ${isPremium
-                        ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800'
-                        : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
+                    ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800'
+                    : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
                     }`}
             >
                 <div className="flex items-start gap-3">
